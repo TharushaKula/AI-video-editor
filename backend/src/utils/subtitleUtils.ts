@@ -17,37 +17,28 @@ function formatTime(seconds: number): string {
 export const generateSRT = (chunks: WhisperChunk[]): string => {
     let srtContent = '';
     let counter = 1;
+    const WORDS_PER_CAPTION = 3;
 
-    chunks.forEach((chunk) => {
-        const text = chunk.text.trim();
-        if (!text) return;
+    for (let i = 0; i < chunks.length; i += WORDS_PER_CAPTION) {
+        const batch = chunks.slice(i, i + WORDS_PER_CAPTION);
+        if (batch.length === 0) continue;
 
-        const words = text.split(/\s+/);
-        const startTime = chunk.timestamp[0];
-        // Ensure we have an end time. If missing, estimate 0.3s per word.
-        const endTime = chunk.timestamp[1] || (startTime + words.length * 0.3);
-        const duration = endTime - startTime;
-        const timePerWord = duration / words.length;
+        // Combine text
+        const text = batch.map(c => c.text.trim()).join(' ');
 
-        // Group into chunks of 3 words (user requested "3 letters" likely meaning minimal/fast words)
-        // We will do max 3 words per caption for a fast-paced feel.
-        const WORDS_PER_CAPTION = 3;
+        // Start time of first word
+        const startTime = batch[0].timestamp[0];
 
-        for (let i = 0; i < words.length; i += WORDS_PER_CAPTION) {
-            const batch = words.slice(i, i + WORDS_PER_CAPTION);
-            const batchText = batch.join(' ');
+        // End time of last word
+        const lastChunk = batch[batch.length - 1];
+        const endTime = lastChunk.timestamp[1] || (lastChunk.timestamp[0] + 0.5);
 
-            const batchStartTime = startTime + (i * timePerWord);
-            const batchEndTime = Math.min(endTime, batchStartTime + (batch.length * timePerWord));
+        const start = formatTime(startTime);
+        const end = formatTime(endTime);
 
-            // Prevent zero-duration or overlapping issues with tiny tolerance
-            const safeStart = formatTime(batchStartTime);
-            const safeEnd = formatTime(batchEndTime);
-
-            srtContent += `${counter}\n${safeStart} --> ${safeEnd}\n${batchText}\n\n`;
-            counter++;
-        }
-    });
+        srtContent += `${counter}\n${start} --> ${end}\n${text}\n\n`;
+        counter++;
+    }
 
     return srtContent.trim();
 };

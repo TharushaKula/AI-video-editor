@@ -35,11 +35,13 @@ export const createVideo = async (audioPath: string, segments: VideoSegment[], j
         // Font Size scaling based on resolution
         const fontSize = isVertical ? 18 : 24;
 
-        // Caption Styles
+        // Caption Styles (FFmpeg force_style uses BGR hex format: &HAABBGGRR)
         const styles: Record<string, string> = {
-            'classic': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FFFFFF,Outline=1,Shadow=1,MarginV=30`,
-            'modern': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FFFF00,BorderStyle=3,Outline=0,Shadow=0,MarginV=50,BackColour=&H80000000`, // Yellow with box
-            'neon': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FF00FF,Outline=2,Shadow=0,MarginV=30` // Pink/Neon
+            'classic': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FFFFFF,Outline=1,Shadow=1,MarginV=30`, // White text, Black outline
+            // Yellow text (BGR: 00FFFF) with Opaque Black Box (Alpha: 00)
+            'modern': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H0000FFFF,BorderStyle=3,Outline=0,Shadow=0,MarginV=50,BackColour=&H00000000,Alignment=2`,
+            // Neon Pink (BGR: FF00FF) with thicker outline for glow
+            'neon': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FF00FF,Outline=2,Shadow=0,MarginV=30,Bold=1`
         };
         const selectedStyle = styles[captionStyle] || styles['classic'];
 

@@ -48,11 +48,11 @@ export const transcribeAudio = async (filePath: string): Promise<any> => {
         console.log(`Starting transcription...`);
 
         // Pass the Float32Array directly
-        // return_timestamps: true gives us chunks with { text, timestamp: [start, end] }
+        // return_timestamps: 'word' gives us word-level precision for perfect sync
         const output = await transcriber(audioData, {
             chunk_length_s: 30,
             stride_length_s: 5,
-            return_timestamps: true
+            return_timestamps: 'word'
         });
 
         // Cleanup temporary wav file
