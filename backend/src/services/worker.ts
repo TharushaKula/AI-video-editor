@@ -7,6 +7,9 @@ import { createVideo } from './videoService';
 import { getIO } from './socketService';
 import ffmpeg from 'fluent-ffmpeg';
 import util from 'util';
+import fs from 'fs';
+import path from 'path';
+import { generateSRT } from '../utils/subtitleUtils';
 
 const connection = new IORedis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', { maxRetriesPerRequest: null });
 
@@ -24,19 +27,33 @@ export const initWorker = () => {
     const worker = new Worker('video-generation', async job => {
         const io = getIO();
         const jobId = job.id;
-        // Extract aspect ratio from job data
-        const { filePath, aspectRatio } = job.data;
+        // Extract aspect ratio and caption style
+        const { filePath, aspectRatio, captionStyle } = job.data;
 
-        console.log(`Processing job ${jobId} (Aspect Ratio: ${aspectRatio || 'Default'})`);
+        console.log(`Processing job ${jobId} (Aspect: ${aspectRatio}, Style: ${captionStyle})`);
 
         try {
             // 1. Transcription
             io.to(jobId!).emit('progress', { step: 'transcription', progress: 10, message: 'Transcribing audio...' });
 
-            // Note: This relies on local 'whisper' command. If it fails, catch block triggers.
             const transcription = await transcribeAudio(filePath);
-            // Whisper JSON output usually has a 'text' field and 'segments' array.
             const text = transcription.text || transcription;
+
+            // Generate Subtitles if chunks exist
+            let subtitlePath: string | undefined;
+            if (transcription.chunks && captionStyle !== 'none') {
+                try {
+                    const srtContent = generateSRT(transcription.chunks);
+                    const uploadDir = path.join(__dirname, '../../uploads', jobId!);
+                    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+                    subtitlePath = path.join(uploadDir, 'subtitles.srt');
+                    fs.writeFileSync(subtitlePath, srtContent);
+                    console.log(`Generated subtitles at ${subtitlePath}`);
+                } catch (srtError) {
+                    console.error('Failed to generate subtitles:', srtError);
+                }
+            }
 
             io.to(jobId!).emit('progress', { step: 'transcription', progress: 30, message: 'Transcription complete' });
 
@@ -72,10 +89,10 @@ export const initWorker = () => {
             }
 
             // 4. Video Assembly
-            io.to(jobId!).emit('progress', { step: 'assembly', progress: 90, message: 'Assembling video...' });
+            io.to(jobId!).emit('progress', { step: 'assembly', progress: 90, message: 'Assembling video with captions...' });
 
-            // Pass aspectRatio to createVideo
-            const videoPath = await createVideo(filePath, segmentsWithImages, jobId!, aspectRatio);
+            // Pass subtitles and style
+            const videoPath = await createVideo(filePath, segmentsWithImages, jobId!, aspectRatio, subtitlePath, captionStyle);
 
             // 5. Done
             io.to(jobId!).emit('progress', {

@@ -14,11 +14,13 @@ router.post('/upload', upload.single('audio'), async (req: Request, res: Respons
 
         // Add job to queue
         const aspectRatio = req.body.aspectRatio || '16:9';
+        const captionStyle = req.body.captionStyle || 'none';
         const job = await videoQueue.add('process-video', {
             filePath: req.file.path,
             originalName: req.file.originalname,
             mimeType: req.file.mimetype,
-            aspectRatio
+            aspectRatio,
+            captionStyle
         });
 
         res.status(200).json({

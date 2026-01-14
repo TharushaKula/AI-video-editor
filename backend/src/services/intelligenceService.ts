@@ -12,7 +12,7 @@ export const analyzeTranscription = async (transcriptionText: string) => {
     try {
         const template = `
         You are an expert video director. Analyze the following audio transcription and break it down into frequent, dynamic video segments.
-        AIM FOR HIGH DENSITY: Generate a new segment roughly every 5-10 seconds of speech. The more segments, the better.
+        AIM FOR HIGH DENSITY: Generate a new segment roughly every 2-6 seconds of speech. The more segments, the better.
         For each segment, identify the:
         1. Visual Topic (what should be shown)
         2. Image Prompt (detailed prompt for Stable Diffusion)

@@ -8,7 +8,7 @@ interface VideoSegment {
     id: number;
 }
 
-export const createVideo = async (audioPath: string, segments: VideoSegment[], jobId: string, aspectRatio: string = '16:9'): Promise<string> => {
+export const createVideo = async (audioPath: string, segments: VideoSegment[], jobId: string, aspectRatio: string = '16:9', subtitlePath?: string, captionStyle: string = 'classic'): Promise<string> => {
     return new Promise(async (resolve, reject) => {
         const outputDir = path.join(__dirname, '../../uploads', jobId);
         if (!fs.existsSync(outputDir)) {
@@ -16,6 +16,7 @@ export const createVideo = async (audioPath: string, segments: VideoSegment[], j
         }
 
         const finalOutputPath = path.join(outputDir, 'final_video.mp4');
+        const mkVPath = path.join(outputDir, 'temp_video.mkv'); // Intermediate for subtitle burning
         const tempListPath = path.join(outputDir, 'files.txt');
 
         // Configure filters based on aspect ratio
@@ -30,6 +31,17 @@ export const createVideo = async (audioPath: string, segments: VideoSegment[], j
         const superW = outW * 2;
         const superH = outH * 2;
         const superSize = `${superW}:${superH}`;
+
+        // Font Size scaling based on resolution
+        const fontSize = isVertical ? 18 : 24;
+
+        // Caption Styles
+        const styles: Record<string, string> = {
+            'classic': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FFFFFF,Outline=1,Shadow=1,MarginV=30`,
+            'modern': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FFFF00,BorderStyle=3,Outline=0,Shadow=0,MarginV=50,BackColour=&H80000000`, // Yellow with box
+            'neon': `Fontname=Arial,FontSize=${fontSize},PrimaryColour=&H00FF00FF,Outline=2,Shadow=0,MarginV=30` // Pink/Neon
+        };
+        const selectedStyle = styles[captionStyle] || styles['classic'];
 
         let fileListContent = '';
 
@@ -77,12 +89,29 @@ export const createVideo = async (audioPath: string, segments: VideoSegment[], j
                     .run();
             });
 
-            // 3. Merge with Audio
+            // 3. Merge with Audio AND Burn Subtitles
             await new Promise<void>((res, rej) => {
-                ffmpeg()
+                let chain = ffmpeg()
                     .input(visualPath)
-                    .input(audioPath)
-                    .outputOptions(['-c:v', 'copy', '-c:a', 'aac', '-map', '0:v:0', '-map', '1:a:0'])
+                    .input(audioPath);
+
+                const outputOptions = ['-c:a', 'aac', '-map', '0:v:0', '-map', '1:a:0'];
+
+                // If subtitles exist, we must re-encode video to burn them
+                // Note: 'subtitles' filter usually requires re-encoding.
+                if (subtitlePath && fs.existsSync(subtitlePath)) {
+                    // Use complex filter for subtitles
+                    // path must be escaped for ffmpeg
+                    const escapedPath = subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
+                    chain = chain.videoFilters(`subtitles='${escapedPath}':force_style='${selectedStyle}'`);
+                    // Cannot use copy for video if filtering
+                    chain = chain.outputOptions(['-c:v', 'libx264', '-preset', 'fast', '-crf', '23', ...outputOptions]);
+                } else {
+                    // No subtitles, fast copy
+                    chain = chain.outputOptions(['-c:v', 'copy', ...outputOptions]);
+                }
+
+                chain
                     .output(finalOutputPath)
                     .on('end', () => res())
                     .on('error', (err) => rej(err))

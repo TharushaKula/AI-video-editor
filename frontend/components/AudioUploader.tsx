@@ -14,7 +14,8 @@ interface AudioUploaderProps {
 
 export default function AudioUploader({ onUploadComplete }: AudioUploaderProps) {
     const [file, setFile] = useState<File | null>(null);
-    const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>('9:16'); // Default to Mobile since user asked for it first in prompt? Or Desktop? User asked for option. I'll default to 9:16 as it's trendy.
+    const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>('9:16');
+    const [captionStyle, setCaptionStyle] = useState<'none' | 'classic' | 'modern' | 'neon'>('classic');
     const [uploading, setUploading] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,6 +31,7 @@ export default function AudioUploader({ onUploadComplete }: AudioUploaderProps) 
         const formData = new FormData();
         formData.append('audio', file);
         formData.append('aspectRatio', aspectRatio);
+        formData.append('captionStyle', captionStyle);
 
         try {
             const response = await axios.post('http://localhost:3001/api/upload', formData);
@@ -83,6 +85,23 @@ export default function AudioUploader({ onUploadComplete }: AudioUploaderProps) 
                             <span className="text-lg font-bold">💻 Desktop</span>
                             <span className="text-xs opacity-70">16:9 (Standard)</span>
                         </Button>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none">Caption Style</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        {['none', 'classic', 'modern', 'neon'].map((style) => (
+                            <Button
+                                key={style}
+                                type="button"
+                                variant={captionStyle === style ? 'default' : 'outline'}
+                                onClick={() => setCaptionStyle(style as any)}
+                                className="capitalize h-10"
+                            >
+                                {style}
+                            </Button>
+                        ))}
                     </div>
                 </div>
 
