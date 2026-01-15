@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,8 +16,16 @@ export default function AudioUploader({ onUploadComplete }: AudioUploaderProps) 
     const [file, setFile] = useState<File | null>(null);
     const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>('9:16');
     const [captionStyle, setCaptionStyle] = useState<'none' | 'classic' | 'modern' | 'neon'>('classic');
-    const [imageSource, setImageSource] = useState<'ai' | 'stock'>('ai');
+    const [imageSource, setImageSource] = useState<'ai' | 'stock' | 'mixed'>('mixed');
+    const [mediaType, setMediaType] = useState<'image' | 'video' | 'both'>('image');
     const [uploading, setUploading] = useState(false);
+
+    // Auto-switch image source if video is selected
+    useEffect(() => {
+        if (mediaType === 'video') {
+            setImageSource('stock'); // Force stock for video since we only support stock video
+        }
+    }, [mediaType]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -34,6 +42,7 @@ export default function AudioUploader({ onUploadComplete }: AudioUploaderProps) 
         formData.append('aspectRatio', aspectRatio);
         formData.append('captionStyle', captionStyle);
         formData.append('imageSource', imageSource);
+        formData.append('mediaType', mediaType);
 
         try {
             const response = await axios.post('http://localhost:3001/api/upload', formData);
@@ -107,26 +116,77 @@ export default function AudioUploader({ onUploadComplete }: AudioUploaderProps) 
                     </div>
                 </div>
 
+                {/* Media Type Selection (Moved Up) */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none">Visual Source</label>
-                    <div className="grid grid-cols-2 gap-4">
+                    <label className="text-sm font-medium leading-none">Media Type</label>
+                    <div className="grid grid-cols-3 gap-2">
+                        <Button
+                            type="button"
+                            variant={mediaType === 'image' ? 'default' : 'outline'}
+                            onClick={() => setMediaType('image')}
+                            className="h-24 flex flex-col gap-1 border-2"
+                        >
+                            <span className="text-lg font-bold">🖼️ Images</span>
+                            <span className="text-xs opacity-70">Static Pictures</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={mediaType === 'video' ? 'default' : 'outline'}
+                            onClick={() => setMediaType('video')}
+                            className="h-24 flex flex-col gap-1 border-2"
+                        >
+                            <span className="text-lg font-bold">🎥 Videos</span>
+                            <span className="text-xs opacity-70">Stock Footage</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={mediaType === 'both' ? 'default' : 'outline'}
+                            onClick={() => setMediaType('both')}
+                            className="h-24 flex flex-col gap-1 border-2"
+                        >
+                            <span className="text-lg font-bold">🎞️ Both</span>
+                            <span className="text-xs opacity-70">Mixed Media</span>
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Visual Source Selection (Conditional) */}
+                <div className="space-y-2 transition-opacity duration-300" style={{ opacity: mediaType === 'video' ? 0.5 : 1 }}>
+                    <label className="text-sm font-medium leading-none flex justify-between">
+                        Visual Source
+                        {mediaType === 'video' && <span className="text-xs text-muted-foreground">(Videos use Stock only)</span>}
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
                         <Button
                             type="button"
                             variant={imageSource === 'ai' ? 'default' : 'outline'}
                             onClick={() => setImageSource('ai')}
-                            className="h-20 flex flex-col gap-1 border-2"
+                            disabled={mediaType === 'video'}
+                            className="h-24 flex flex-col gap-1 border-2"
                         >
-                            <span className="text-lg font-bold">✨ AI Generated</span>
-                            <span className="text-xs opacity-70">Stable Diffusion / Pollinations</span>
+                            <span className="text-lg font-bold">✨ AI</span>
+                            <span className="text-xs opacity-70 text-center whitespace-nowrap">Stable Diffusion</span>
                         </Button>
                         <Button
                             type="button"
                             variant={imageSource === 'stock' ? 'default' : 'outline'}
                             onClick={() => setImageSource('stock')}
-                            className="h-20 flex flex-col gap-1 border-2"
+                            // If video is selected, this is implicitly active but buttons are disabled
+                            disabled={mediaType === 'video'}
+                            className={`h-24 flex flex-col gap-1 border-2 ${mediaType === 'video' ? 'bg-secondary' : ''}`}
                         >
-                            <span className="text-lg font-bold">📷 Stock Images</span>
-                            <span className="text-xs opacity-70">Real Photos (Pexels)</span>
+                            <span className="text-lg font-bold">📷 Stock</span>
+                            <span className="text-xs opacity-70 text-center">Real Photos</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={imageSource === 'mixed' ? 'default' : 'outline'}
+                            onClick={() => setImageSource('mixed')}
+                            disabled={mediaType === 'video'}
+                            className="h-24 flex flex-col gap-1 border-2"
+                        >
+                            <span className="text-lg font-bold">🔀 Mixed</span>
+                            <span className="text-xs opacity-70 text-center">Smart Mode</span>
                         </Button>
                     </div>
                 </div>

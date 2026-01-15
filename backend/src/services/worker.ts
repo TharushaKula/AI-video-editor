@@ -2,7 +2,7 @@ import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { transcribeAudio } from './audioService';
 import { analyzeTranscription } from './intelligenceService';
-import { generateImage } from './mediaService';
+import { generateMedia } from './mediaService';
 import { createVideo } from './videoService';
 import { getIO } from './socketService';
 import ffmpeg from 'fluent-ffmpeg';
@@ -10,6 +10,7 @@ import util from 'util';
 import fs from 'fs';
 import path from 'path';
 import { generateSRT } from '../utils/subtitleUtils';
+import { videoQueue } from './queueService';
 
 const connection = new IORedis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', { maxRetriesPerRequest: null });
 
@@ -23,14 +24,27 @@ const getDuration = (filePath: string): Promise<number> => {
     });
 };
 
-export const initWorker = () => {
+export const initWorker = async () => {
+    try {
+        const counts = await videoQueue.getJobCounts('wait', 'active', 'delayed');
+        const totalPending = counts.wait + counts.active + counts.delayed;
+        if (totalPending > 0) {
+            console.log(`\n[Worker] ⚠️  Found ${totalPending} pending/active jobs in the queue from a previous session.`);
+            console.log(`[Worker] ▶️  Resuming processing automatically...`);
+        } else {
+            console.log(`[Worker] Queue is empty. Waiting for new jobs...`);
+        }
+    } catch (err) {
+        console.warn('[Worker] Failed to check queue status:', err);
+    }
+
     const worker = new Worker('video-generation', async job => {
         const io = getIO();
         const jobId = job.id;
-        // Extract aspect ratio and caption style
-        const { filePath, aspectRatio, captionStyle } = job.data;
+        // Extract all parameters
+        const { filePath, aspectRatio, captionStyle, imageSource, mediaType } = job.data;
 
-        console.log(`Processing job ${jobId} (Aspect: ${aspectRatio}, Style: ${captionStyle})`);
+        console.log(`Processing job ${jobId} (Aspect: ${aspectRatio}, Media: ${mediaType || 'image'})`);
 
         try {
             // 1. Transcription
@@ -39,17 +53,15 @@ export const initWorker = () => {
             const transcription = await transcribeAudio(filePath);
             const text = transcription.text || transcription;
 
-            // Generate Subtitles if chunks exist
+            // Subtitles
             let subtitlePath: string | undefined;
             if (transcription.chunks && captionStyle !== 'none') {
                 try {
                     const srtContent = generateSRT(transcription.chunks);
                     const uploadDir = path.join(__dirname, '../../uploads', jobId!);
                     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
                     subtitlePath = path.join(uploadDir, 'subtitles.srt');
                     fs.writeFileSync(subtitlePath, srtContent);
-                    console.log(`Generated subtitles at ${subtitlePath}`);
                 } catch (srtError) {
                     console.error('Failed to generate subtitles:', srtError);
                 }
@@ -70,31 +82,42 @@ export const initWorker = () => {
             const segmentCount = analysis.length;
             const defaultDuration = totalDuration / segmentCount;
 
-            const segmentsWithImages = [];
+            const segmentsWithMedia = [];
             let currentProgress = 55;
             const progressStep = 30 / Math.max(segmentCount, 1);
 
             for (const segment of analysis) {
-                // Pass visual_topic, aspectRatio, and imageSource
-                // Extract imageSource from job data (defaulting to 'ai' if missing)
-                const source = job.data.imageSource || 'ai';
-                const imagePath = await generateImage(segment.image_prompt, jobId!, segment.segment_id, segment.visual_topic, aspectRatio, source);
+                const source = imageSource || 'ai';
+                const type = mediaType || 'image';
 
-                segmentsWithImages.push({
-                    imagePath,
-                    duration: defaultDuration, // Simple equal split for now to ensure we cover the whole audio
+                // Call generateMedia
+                const mediaResult = await generateMedia(
+                    segment.image_prompt,
+                    jobId!,
+                    segment.segment_id,
+                    segment.visual_topic,
+                    aspectRatio,
+                    source,
+                    segment.contains_people,
+                    type
+                );
+
+                segmentsWithMedia.push({
+                    imagePath: mediaResult.path,
+                    mediaType: mediaResult.type,
+                    duration: defaultDuration,
                     id: segment.segment_id
                 });
 
                 currentProgress += progressStep;
-                io.to(jobId!).emit('progress', { step: 'media', progress: Math.min(85, currentProgress), message: `Generated image ${segment.segment_id}/${segmentCount}` });
+                io.to(jobId!).emit('progress', { step: 'media', progress: Math.min(85, currentProgress), message: `Generated segment ${segment.segment_id}/${segmentCount}` });
             }
 
             // 4. Video Assembly
-            io.to(jobId!).emit('progress', { step: 'assembly', progress: 90, message: 'Assembling video with captions...' });
+            io.to(jobId!).emit('progress', { step: 'assembly', progress: 90, message: 'Assembling video...' });
 
-            // Pass subtitles and style
-            const videoPath = await createVideo(filePath, segmentsWithImages, jobId!, aspectRatio, subtitlePath, captionStyle);
+            // Pass segmentsWithMedia
+            const videoPath = await createVideo(filePath, segmentsWithMedia, jobId!, aspectRatio, subtitlePath, captionStyle);
 
             // 5. Done
             io.to(jobId!).emit('progress', {

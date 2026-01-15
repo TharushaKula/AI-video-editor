@@ -15,14 +15,17 @@ router.post('/upload', upload.single('audio'), async (req: Request, res: Respons
         // Add job to queue
         const aspectRatio = req.body.aspectRatio || '16:9';
         const captionStyle = req.body.captionStyle || 'none';
-        const imageSource = req.body.imageSource || 'ai'; // 'ai' or 'stock'
+        const imageSource = req.body.imageSource || 'ai';
+        const mediaType = req.body.mediaType || 'image'; // 'image', 'video', 'both'
+
         const job = await videoQueue.add('process-video', {
             filePath: req.file.path,
             originalName: req.file.originalname,
             mimeType: req.file.mimetype,
             aspectRatio,
             captionStyle,
-            imageSource
+            imageSource,
+            mediaType
         });
 
         res.status(200).json({

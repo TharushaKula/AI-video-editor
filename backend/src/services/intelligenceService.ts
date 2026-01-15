@@ -17,7 +17,8 @@ export const analyzeTranscription = async (transcriptionText: string) => {
         1. Visual Topic (what should be shown)
         2. Image Prompt (detailed prompt for Stable Diffusion)
         3. Sentiment (Happy, Sad, Intense, Calm, etc.)
-        4. Estimated duration based on text length (assume avg speaking rate).
+        4. Contains People (boolean): Does this scene depict humans, faces, or specific people? (Set to true if yes)
+        5. Estimated duration based on text length (assume avg speaking rate).
 
         Return the result as a raw valid JSON array of objects. Do not include markdown formatting or explanations. JSON only.
         
@@ -30,7 +31,8 @@ export const analyzeTranscription = async (transcriptionText: string) => {
                 "text_content": "part of text...",
                 "visual_topic": "...",
                 "image_prompt": "...",
-                "sentiment": "..."
+                "sentiment": "...",
+                "contains_people": true/false
             }}
         ]
         `;
