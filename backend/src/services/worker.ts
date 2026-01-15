@@ -75,8 +75,10 @@ export const initWorker = () => {
             const progressStep = 30 / Math.max(segmentCount, 1);
 
             for (const segment of analysis) {
-                // Pass visual_topic and aspectRatio
-                const imagePath = await generateImage(segment.image_prompt, jobId!, segment.segment_id, segment.visual_topic, aspectRatio);
+                // Pass visual_topic, aspectRatio, and imageSource
+                // Extract imageSource from job data (defaulting to 'ai' if missing)
+                const source = job.data.imageSource || 'ai';
+                const imagePath = await generateImage(segment.image_prompt, jobId!, segment.segment_id, segment.visual_topic, aspectRatio, source);
 
                 segmentsWithImages.push({
                     imagePath,
