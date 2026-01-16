@@ -50,12 +50,15 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
                 // But ZoomPan creates new frames, so we can do it directly on input if we set size.
 
                 // ZoomPan Effect
-                const d = Math.ceil(segment.duration * 25) + 25; // Duration in frames usually 25fps. Add buffer to prevent blink.
+                const fps = 25;
+                const d = Math.ceil(segment.duration * fps) + fps; // Duration in frames. Add buffer to prevent blink.
                 const s = `${scaleW}x${scaleH}`;
-                // Simple center zoom
-                const zoompan = `zoompan=z='min(zoom+0.0015,1.5)':d=${d}:s=${s}`;
+                // Simple center zoom with explicit fps + trim + pts reset for concat
+                const zoompan = `zoompan=z='min(zoom+0.0015,1.5)':d=${d}:s=${s}:fps=${fps}`;
+                const trimFilter = `trim=duration=${segment.duration}`;
+                const ptsFilter = `setpts=PTS-STARTPTS`;
 
-                filterComplex.push(`[${index}:v]${zoompan}[v${index}]`);
+                filterComplex.push(`[${index}:v]${zoompan},${trimFilter},${ptsFilter}[v${index}]`);
             }
             inputMap.push(`[v${index}]`);
         });
@@ -71,7 +74,8 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
             if (segment.mediaType === 'video') {
                 chain = chain.input(segment.imagePath); // It's an mp4 path
             } else {
-                chain = chain.input(segment.imagePath).loop(segment.duration);
+                // Keep input alive; duration is controlled by zoompan/concat and output -t.
+                chain = chain.input(segment.imagePath).inputOptions(['-loop 1']);
             }
         });
 
@@ -82,6 +86,8 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
         const complexStr = filterComplex.join(';');
         chain = chain.complexFilter(complexStr, ['vconcat']);
 
+        const totalDuration = segments.reduce((acc, s) => acc + s.duration, 0) + 1;
+
         // Output Options
         let outputOptions = [
             '-map', '[vconcat]', // Map video from filter
@@ -89,7 +95,7 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
             '-pix_fmt', 'yuv420p',
             // '-shortest' // CAUTION: With complex filters and exact trims, shortest can sometimes cut prematurely if audio is slightly shorter.
             // We'll rely on our segment math.
-            '-t', `${segments.reduce((acc, s) => acc + s.duration, 0) + 1}` // Hard limit slightly above duration
+            '-t', `${totalDuration}` // Hard limit slightly above duration
         ];
 
         // Caption Styles (FFmpeg force_style uses BGR hex format: &HAABBGGRR)
@@ -116,7 +122,8 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
             outputOptions = [
                 '-map', '[vfinal]',
                 '-map', `${segments.length}:a`,
-                '-pix_fmt', 'yuv420p'
+                '-pix_fmt', 'yuv420p',
+                '-t', `${totalDuration}`
             ];
 
             // Extend the complex filter
