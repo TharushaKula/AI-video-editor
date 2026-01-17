@@ -23,11 +23,17 @@ app.use(express.json());
 import uploadRoutes from './routes/upload';
 import statusRoutes from './routes/status';
 import downloadRoutes from './routes/download';
+import analyzeRoutes from './routes/analyze';
+import generateRoutes from './routes/generate';
+import mediaRoutes from './routes/media';
 import { initWorker } from './services/worker';
 
 app.use('/api', uploadRoutes);
 app.use('/api', statusRoutes);
 app.use('/api', downloadRoutes);
+app.use('/api', analyzeRoutes);
+app.use('/api', generateRoutes);
+app.use('/api', mediaRoutes);
 
 app.get('/', (req, res) => {
     res.send('Video Generator API is running');
