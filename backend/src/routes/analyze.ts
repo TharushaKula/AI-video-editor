@@ -207,7 +207,8 @@ router.get('/alternatives/:jobId/:segmentId', async (req: Request, res: Response
                 jobData.aspectRatio,
                 jobData.imageSource,
                 segment.contains_people,
-                mediaTypeToUse as any
+                mediaTypeToUse as any,
+                i // Pass loop index as variationIndex
             );
 
             alternatives.push({

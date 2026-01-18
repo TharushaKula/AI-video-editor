@@ -27,7 +27,8 @@ export const generateMedia = async (
     aspectRatio: string = '16:9',
     imageSource: string = 'ai',
     containsPeople: boolean = false,
-    mediaType: 'image' | 'video' | 'both' = 'image'
+    mediaType: 'image' | 'video' | 'both' = 'image',
+    variationIndex: number = 0 // New parameter for distinct results
 ): Promise<{ path: string, type: 'image' | 'video' }> => {
 
     const uploadDir = path.join(process.cwd(), 'uploads', jobId);
@@ -48,16 +49,16 @@ export const generateMedia = async (
         if (!process.env.PEXELS_API_KEY || !visualTopic) throw new Error('Pexels Video skipped (No Key or Topic)');
 
         const videoPath = path.join(uploadDir, `segment_${segmentId}.mp4`);
-        console.log(`[Step: Media Gen] Searching Pexels Video for: "${visualTopic}" (${pexelsOrientation})`);
+        // Add page parameter to get diverse results
+        const page = variationIndex + 1;
+        console.log(`[Step: Media Gen] Searching Pexels Video for: "${visualTopic}" (Page ${page})`);
 
-        const pexelsRes = await axios.get(`https://api.pexels.com/videos/search?query=${encodeURIComponent(visualTopic)}&per_page=1&orientation=${pexelsOrientation}&size=medium`, {
+        const pexelsRes = await axios.get(`https://api.pexels.com/videos/search?query=${encodeURIComponent(visualTopic)}&per_page=1&page=${page}&orientation=${pexelsOrientation}&size=medium`, {
             headers: { Authorization: process.env.PEXELS_API_KEY }
         });
 
         if (pexelsRes.data && pexelsRes.data.videos && pexelsRes.data.videos.length > 0) {
-            // Find best quality video file (often better to take the first one returned by Pexels as it's ranked)
             const videoFiles = pexelsRes.data.videos[0].video_files;
-            // Use the first available link
             const videoUrl = videoFiles[0].link;
 
             await downloadFile(videoUrl, videoPath);
@@ -73,13 +74,17 @@ export const generateMedia = async (
 
         const tryStableDiffusion = async () => {
             console.log(`[Step: Media Gen] Trying Stable Diffusion (${width}x${height})...`);
+            // Vary seed based on variationIndex
+            const seed = Math.floor(Math.random() * 1000000) + (variationIndex * 12345);
+
             const payload = {
                 prompt: prompt + ", high quality, 4k, photorealistic",
                 negative_prompt: "blur, low quality, distortion, ugly",
                 steps: 20,
                 width: width,
                 height: height,
-                cfg_scale: 7
+                cfg_scale: 7,
+                seed: seed
             };
             const response = await axios.post(SD_API_URL, payload, { timeout: 10000 });
             if (response.data?.images?.[0]) {
@@ -92,8 +97,10 @@ export const generateMedia = async (
 
         const tryPexelsImage = async () => {
             if (!process.env.PEXELS_API_KEY || !visualTopic) throw new Error('Pexels skipped');
-            console.log(`[Step: Media Gen] Searching Pexels Image...`);
-            const pexelsRes = await axios.get(`https://api.pexels.com/v1/search?query=${encodeURIComponent(visualTopic)}&per_page=1&orientation=${pexelsOrientation}`, {
+            const page = variationIndex + 1;
+            console.log(`[Step: Media Gen] Searching Pexels Image (Page ${page})...`);
+
+            const pexelsRes = await axios.get(`https://api.pexels.com/v1/search?query=${encodeURIComponent(visualTopic)}&per_page=1&page=${page}&orientation=${pexelsOrientation}`, {
                 headers: { Authorization: process.env.PEXELS_API_KEY }
             });
             if (pexelsRes.data?.photos?.[0]) {
@@ -105,7 +112,8 @@ export const generateMedia = async (
 
         const tryPollinations = async () => {
             console.log(`[Step: Media Gen] Trying Pollinations...`);
-            const seed = Math.floor(Math.random() * 1000);
+            // Ensure unique seed for each variation
+            const seed = Math.floor(Math.random() * 1000) + (variationIndex * 99);
             const finalPrompt = visualTopic ? `${visualTopic}, cinematic lighting, 4k` : `${prompt}, 4k`;
             const fallbackUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${pollinationsWidth}&height=${pollinationsHeight}&seed=${seed}&nologo=true`;
             await downloadFile(fallbackUrl, imagePath);
