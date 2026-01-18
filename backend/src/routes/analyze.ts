@@ -58,7 +58,8 @@ router.post('/analyze', upload.single('audio'), async (req: Request, res: Respon
         const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         // Create upload directory for this job
-        const uploadDir = path.join(__dirname, '../../uploads', jobId);
+        const uploadDir = path.join(process.cwd(), 'uploads', jobId);
+        console.log(`[Analyze] Creating upload directory at: ${uploadDir}`);
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -67,7 +68,7 @@ router.post('/analyze', upload.single('audio'), async (req: Request, res: Respon
         const sanitizedFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
         const newFilePath = path.join(uploadDir, sanitizedFilename);
         fs.copyFileSync(filePath, newFilePath);
-        
+
         // Clean up original uploaded file
         try {
             fs.unlinkSync(filePath);
@@ -197,7 +198,7 @@ router.get('/alternatives/:jobId/:segmentId', async (req: Request, res: Response
 
         for (let i = 0; i < 4; i++) {
             const altId = `${segmentId}_alt_${i + 1}`;
-            
+
             const mediaResult = await generateMedia(
                 segment.image_prompt,
                 jobId,

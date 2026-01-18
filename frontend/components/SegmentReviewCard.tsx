@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-    Check, 
-    RefreshCw, 
-    Image as ImageIcon, 
-    Video, 
+import {
+    Check,
+    RefreshCw,
+    Image as ImageIcon,
+    Video,
     ChevronDown,
     Sparkles,
     Play,
@@ -53,6 +53,7 @@ export default function SegmentReviewCard({
 }: SegmentReviewCardProps) {
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageError, setImageError] = useState(false);
 
     const mediaUrl = `http://localhost:3001${segment.media_url}`;
     const isVideo = segment.media_type === 'video';
@@ -81,16 +82,16 @@ export default function SegmentReviewCard({
     const sentimentColor = sentimentColors[segment.sentiment] || sentimentColors['Neutral'];
 
     return (
-        <Card 
+        <Card
             className={cn(
                 "group relative overflow-hidden transition-all duration-500 ease-out",
                 "border-2 hover:shadow-2xl hover:shadow-primary/5",
-                segment.confirmed 
-                    ? "border-emerald-500/50 bg-gradient-to-br from-emerald-500/5 to-transparent" 
+                segment.confirmed
+                    ? "border-emerald-500/50 bg-gradient-to-br from-emerald-500/5 to-transparent"
                     : "border-border/50 hover:border-primary/30",
                 isExpanded ? "ring-2 ring-primary/20" : ""
             )}
-            style={{ 
+            style={{
                 animationDelay: `${index * 100}ms`,
                 animation: 'fadeInUp 0.5s ease-out forwards'
             }}
@@ -111,8 +112,16 @@ export default function SegmentReviewCard({
             {/* Media Preview Section */}
             <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-slate-800 overflow-hidden">
                 {/* Loading Skeleton */}
-                {!imageLoaded && !isVideo && (
+                {!imageLoaded && !isVideo && !imageError && (
                     <div className="absolute inset-0 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 animate-pulse" />
+                )}
+
+                {/* Error Fallback */}
+                {imageError && !isVideo && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 text-slate-500">
+                        <ImageIcon className="w-10 h-10 mb-2 opacity-50" />
+                        <span className="text-xs font-medium">Image not found</span>
+                    </div>
                 )}
 
                 {isVideo ? (
@@ -128,7 +137,7 @@ export default function SegmentReviewCard({
                             onPause={() => setIsVideoPlaying(false)}
                         />
                         {/* Video Play Overlay */}
-                        <button 
+                        <button
                             onClick={handleVideoToggle}
                             className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                         >
@@ -147,9 +156,14 @@ export default function SegmentReviewCard({
                         alt={segment.visual_topic}
                         className={cn(
                             "w-full h-full object-cover transition-all duration-700",
-                            imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105"
+                            (imageLoaded && !imageError) ? "opacity-100 scale-100" : "opacity-0 scale-105"
                         )}
                         onLoad={() => setImageLoaded(true)}
+                        onError={() => {
+                            console.error(`[SegmentCard] Failed to load image: ${mediaUrl}`);
+                            setImageError(true);
+                            setImageLoaded(true);
+                        }}
                     />
                 )}
 
@@ -183,7 +197,7 @@ export default function SegmentReviewCard({
                 </div>
 
                 {/* Text Content */}
-                <button 
+                <button
                     onClick={onToggleExpand}
                     className="w-full text-left group/text"
                 >
@@ -246,8 +260,8 @@ export default function SegmentReviewCard({
                         disabled={segment.confirmed}
                         className={cn(
                             "flex-1 gap-2 transition-all duration-300",
-                            segment.confirmed 
-                                ? "bg-emerald-500/20 text-emerald-600 border border-emerald-500/30" 
+                            segment.confirmed
+                                ? "bg-emerald-500/20 text-emerald-600 border border-emerald-500/30"
                                 : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-lg shadow-emerald-500/25"
                         )}
                     >

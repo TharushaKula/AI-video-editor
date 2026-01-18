@@ -30,7 +30,7 @@ export const generateMedia = async (
     mediaType: 'image' | 'video' | 'both' = 'image'
 ): Promise<{ path: string, type: 'image' | 'video' }> => {
 
-    const uploadDir = path.join(__dirname, '../../uploads', jobId);
+    const uploadDir = path.join(process.cwd(), 'uploads', jobId);
     if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
     }
