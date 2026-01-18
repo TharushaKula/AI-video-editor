@@ -178,7 +178,9 @@ router.get('/alternatives/:jobId/:segmentId', async (req: Request, res: Response
     try {
         const jobId = req.params.jobId as string;
         const segmentId = req.params.segmentId as string;
-        const { type } = req.query; // 'image' or 'video'
+        const { type, page } = req.query; // 'image' or 'video', page number
+        const pageNum = page ? parseInt(page as string) : 1;
+        const offset = (pageNum - 1) * 4;
 
         const jobData = getJobData(jobId);
         if (!jobData) {
@@ -197,7 +199,7 @@ router.get('/alternatives/:jobId/:segmentId', async (req: Request, res: Response
         const mediaTypeToUse = (type as string) || segment.user_media_type || 'image';
 
         for (let i = 0; i < 4; i++) {
-            const altId = `${segmentId}_alt_${i + 1}`;
+            const altId = `${segmentId}_alt_${offset + i + 1}`; // Unique ID based on offset
 
             const mediaResult = await generateMedia(
                 segment.image_prompt,
@@ -208,7 +210,7 @@ router.get('/alternatives/:jobId/:segmentId', async (req: Request, res: Response
                 jobData.imageSource,
                 segment.contains_people,
                 mediaTypeToUse as any,
-                i // Pass loop index as variationIndex
+                offset + i // Pass offset + loop index as variationIndex
             );
 
             alternatives.push({

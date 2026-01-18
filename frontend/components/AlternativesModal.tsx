@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-    X, 
-    Check, 
-    Loader2, 
+import {
+    X,
+    Check,
+    Loader2,
     RefreshCw,
     Image as ImageIcon,
     Video,
@@ -47,18 +47,20 @@ export default function AlternativesModal({
     const [loading, setLoading] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [selectedType, setSelectedType] = useState<'image' | 'video'>(mediaType);
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
         if (isOpen) {
-            fetchAlternatives();
+            setPage(1); // Reset page on open
+            fetchAlternatives(1);
         }
     }, [isOpen, selectedType]);
 
-    const fetchAlternatives = async () => {
+    const fetchAlternatives = async (pageNum: number) => {
         setLoading(true);
         try {
             const response = await axios.get(
-                `http://localhost:3001/api/alternatives/${jobId}/${segmentId}?type=${selectedType}`
+                `http://localhost:3001/api/alternatives/${jobId}/${segmentId}?type=${selectedType}&page=${pageNum}`
             );
             setAlternatives(response.data.alternatives);
         } catch (error) {
@@ -66,6 +68,12 @@ export default function AlternativesModal({
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleGenerateMore = () => {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        fetchAlternatives(nextPage);
     };
 
     const handleSelect = (alt: Alternative) => {
@@ -85,7 +93,7 @@ export default function AlternativesModal({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
-            <div 
+            <div
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
                 onClick={onClose}
             />
@@ -104,7 +112,7 @@ export default function AlternativesModal({
                                 <p className="text-sm text-muted-foreground">{visualTopic}</p>
                             </div>
                         </div>
-                        <button 
+                        <button
                             onClick={onClose}
                             className="p-2 hover:bg-muted rounded-lg transition-colors"
                         >
@@ -148,7 +156,7 @@ export default function AlternativesModal({
                         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3 font-semibold">Current Selection</p>
                         <div className="relative aspect-video max-w-xs rounded-xl overflow-hidden border-2 border-primary/50 shadow-lg shadow-primary/10">
                             {mediaType === 'video' ? (
-                                <video 
+                                <video
                                     src={`http://localhost:3001${currentMediaUrl}`}
                                     className="w-full h-full object-cover"
                                     autoPlay
@@ -157,7 +165,7 @@ export default function AlternativesModal({
                                     playsInline
                                 />
                             ) : (
-                                <img 
+                                <img
                                     src={`http://localhost:3001${currentMediaUrl}`}
                                     alt="Current"
                                     className="w-full h-full object-cover"
@@ -177,7 +185,7 @@ export default function AlternativesModal({
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={fetchAlternatives}
+                            onClick={handleGenerateMore} // Use the specific handler
                             disabled={loading}
                             className="gap-2 text-xs"
                         >
@@ -189,7 +197,7 @@ export default function AlternativesModal({
                     {loading ? (
                         <div className="grid grid-cols-2 gap-4">
                             {[1, 2, 3, 4].map((i) => (
-                                <div 
+                                <div
                                     key={i}
                                     className="aspect-video rounded-xl bg-gradient-to-r from-muted via-muted/70 to-muted animate-pulse"
                                     style={{ animationDelay: `${i * 100}ms` }}
@@ -209,7 +217,7 @@ export default function AlternativesModal({
                                             ? "border-emerald-500 ring-2 ring-emerald-500/30 shadow-lg shadow-emerald-500/20"
                                             : "border-transparent hover:border-primary/30"
                                     )}
-                                    style={{ 
+                                    style={{
                                         animationDelay: `${index * 100}ms`,
                                         animation: 'fadeInUp 0.4s ease-out forwards'
                                     }}
