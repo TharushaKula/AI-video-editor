@@ -106,49 +106,126 @@ export default function AudioUploader({ onAnalyzeStart, onAnalysisComplete }: Au
     return (
         <Card 
             className={`
-                p-12 border-2 flex flex-col items-center gap-6 w-full max-w-xl mx-auto 
+                p-8 border-2 w-full max-w-6xl mx-auto 
                 bg-gradient-to-br from-card/80 via-card to-violet-500/5 backdrop-blur-sm 
                 transition-all duration-300 shadow-xl
-                ${isDragging ? 'border-primary border-solid scale-[1.02] shadow-2xl shadow-primary/20' : 'border-dashed hover:border-primary/50'}
+                ${isDragging ? 'border-primary border-solid scale-[1.01] shadow-2xl shadow-primary/20' : 'border-dashed hover:border-primary/50'}
             `}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
         >
-            {/* Upload Icon */}
-            <div 
-                className={`
-                    p-6 rounded-2xl transition-all duration-500 cursor-pointer
-                    ${file 
-                        ? 'bg-emerald-500/20 scale-110' 
-                        : isDragging 
-                            ? 'bg-primary/20 scale-110 animate-bounce' 
-                            : 'bg-gradient-to-br from-violet-500/10 to-purple-500/10 animate-pulse'
-                    }
-                `}
-                onClick={() => fileInputRef.current?.click()}
-            >
-                {file ? (
-                    <Mic className="w-12 h-12 text-emerald-500" />
-                ) : (
-                    <Upload className="w-12 h-12 text-violet-500" />
-                )}
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column - Upload Area */}
+                <div className="lg:col-span-1 space-y-6">
+                    {/* Title */}
+                    <div className="space-y-2">
+                        <h3 className="text-2xl font-bold tracking-tight">
+                            {file ? 'Ready to Analyze' : 'Upload Your Audio'}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                            {file 
+                                ? 'Configure settings and start generating' 
+                                : 'Drag & drop or click to select an audio file'
+                            }
+                        </p>
+                    </div>
 
-            {/* Title */}
-            <div className="text-center space-y-2">
-                <h3 className="text-2xl font-bold tracking-tight">
-                    {file ? 'Ready to Analyze' : 'Upload Your Audio'}
-                </h3>
-                <p className="text-muted-foreground">
-                    {file 
-                        ? 'Configure your preferences below and start generating' 
-                        : 'Drag & drop or click to select an MP3/WAV file'
-                    }
-                </p>
-            </div>
+                    {/* Upload Icon & File Input */}
+                    <div 
+                        className={`
+                            relative p-8 rounded-2xl transition-all duration-500 cursor-pointer border-2 border-dashed
+                            ${file 
+                                ? 'bg-emerald-500/10 border-emerald-500/30 scale-[1.02]' 
+                                : isDragging 
+                                    ? 'bg-primary/10 border-primary scale-[1.02] animate-pulse' 
+                                    : 'bg-gradient-to-br from-violet-500/5 to-purple-500/5 border-violet-500/20 hover:border-primary/50'
+                            }
+                        `}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <div className="flex flex-col items-center justify-center gap-4">
+                            {file ? (
+                                <>
+                                    <div className="p-4 rounded-xl bg-emerald-500/20">
+                                        <Mic className="w-10 h-10 text-emerald-500" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="font-semibold text-sm">{file.name}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="p-4 rounded-xl bg-violet-500/10">
+                                        <Upload className="w-10 h-10 text-violet-500" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="font-medium text-sm">Click or drag to upload</p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            MP3, WAV, M4A, AAC
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <Input 
+                            ref={fileInputRef}
+                            type="file" 
+                            accept="audio/*" 
+                            onChange={handleFileChange} 
+                            className="cursor-pointer file:text-primary opacity-0 absolute inset-0 z-10"
+                        />
+                    </div>
 
-            <div className="w-full max-w-sm space-y-5">
+                    {/* Waveform Preview */}
+                    {file && (
+                        <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+                            <Waveform file={file} />
+                        </div>
+                    )}
+
+                    {/* Upload Progress */}
+                    {uploading && (
+                        <div className="space-y-2 animate-in fade-in">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Analyzing content...</span>
+                                <span className="font-mono text-primary">{uploadProgress}%</span>
+                            </div>
+                            <Progress value={uploadProgress} className="h-2" />
+                        </div>
+                    )}
+
+                    {/* Submit Button */}
+                    <Button
+                        onClick={handleUpload}
+                        disabled={!file || uploading}
+                        className={`
+                            w-full h-12 text-base font-semibold transition-all duration-300
+                            ${file && !uploading 
+                                ? 'bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 shadow-lg shadow-violet-500/30' 
+                                : ''
+                            }
+                        `}
+                    >
+                        {uploading ? (
+                            <>
+                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                Analyzing...
+                            </>
+                        ) : (
+                            <>
+                                <Upload className="w-5 h-5 mr-2" />
+                                Analyze & Generate Visuals
+                            </>
+                        )}
+                    </Button>
+                </div>
+
+                {/* Right Column - Settings */}
+                <div className="lg:col-span-2 space-y-6">
                 {/* File Input */}
                 <div 
                     className="relative cursor-pointer group"
@@ -183,159 +260,139 @@ export default function AudioUploader({ onAnalyzeStart, onAnalysisComplete }: Au
                     </div>
                 )}
 
-                {/* Video Format */}
-                <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none">Video Format</label>
-                    <div className="grid grid-cols-2 gap-3">
-                        <Button
-                            type="button"
-                            variant={aspectRatio === '9:16' ? 'default' : 'outline'}
-                            onClick={() => setAspectRatio('9:16')}
-                            className={`h-20 flex flex-col gap-1 transition-all duration-300 ${
-                                aspectRatio === '9:16' ? 'shadow-lg shadow-primary/25' : ''
-                            }`}
-                        >
-                            <span className="text-2xl">📱</span>
-                            <span className="text-sm font-semibold">Mobile</span>
-                            <span className="text-[10px] opacity-70">9:16 Vertical</span>
-                        </Button>
-                        <Button
-                            type="button"
-                            variant={aspectRatio === '16:9' ? 'default' : 'outline'}
-                            onClick={() => setAspectRatio('16:9')}
-                            className={`h-20 flex flex-col gap-1 transition-all duration-300 ${
-                                aspectRatio === '16:9' ? 'shadow-lg shadow-primary/25' : ''
-                            }`}
-                        >
-                            <span className="text-2xl">💻</span>
-                            <span className="text-sm font-semibold">Desktop</span>
-                            <span className="text-[10px] opacity-70">16:9 Standard</span>
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Caption Style */}
-                <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none">Caption Style</label>
-                    <div className="grid grid-cols-4 gap-2">
-                        {[
-                            { id: 'none', label: 'None', icon: '✕' },
-                            { id: 'classic', label: 'Classic', icon: '📝' },
-                            { id: 'modern', label: 'Modern', icon: '✨' },
-                            { id: 'neon', label: 'Neon', icon: '💫' }
-                        ].map((style) => (
-                            <Button
-                                key={style.id}
-                                type="button"
-                                variant={captionStyle === style.id ? 'default' : 'outline'}
-                                onClick={() => setCaptionStyle(style.id as any)}
-                                className="h-14 flex flex-col gap-0.5 p-1 text-xs"
-                            >
-                                <span>{style.icon}</span>
-                                <span className="capitalize">{style.label}</span>
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Media Type */}
-                <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none">Media Type</label>
-                    <div className="grid grid-cols-3 gap-2">
-                        {[
-                            { id: 'image', label: 'Images', icon: '🖼️', desc: 'Static visuals' },
-                            { id: 'video', label: 'Videos', icon: '🎥', desc: 'Stock footage' },
-                            { id: 'both', label: 'Mixed', icon: '🎞️', desc: 'Best of both' }
-                        ].map((type) => (
-                            <Button
-                                key={type.id}
-                                type="button"
-                                variant={mediaType === type.id ? 'default' : 'outline'}
-                                onClick={() => setMediaType(type.id as any)}
-                                className={`h-20 flex flex-col gap-1 transition-all duration-300 ${
-                                    mediaType === type.id ? 'shadow-lg shadow-primary/25' : ''
-                                }`}
-                            >
-                                <span className="text-xl">{type.icon}</span>
-                                <span className="text-xs font-semibold">{type.label}</span>
-                                <span className="text-[10px] opacity-70">{type.desc}</span>
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Visual Source */}
-                <div className={`space-y-2 transition-all duration-300 ${mediaType === 'video' ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <label className="text-sm font-medium leading-none flex items-center justify-between">
-                        <span>Visual Source</span>
-                        {mediaType === 'video' && (
-                            <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">Stock only for videos</span>
-                        )}
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                        {[
-                            { id: 'ai', label: 'AI Generated', icon: '🤖', desc: 'Stable Diffusion' },
-                            { id: 'stock', label: 'Stock', icon: '📷', desc: 'Real photos' },
-                            { id: 'mixed', label: 'Smart Mix', icon: '🔀', desc: 'AI + Stock' }
-                        ].map((source) => (
-                            <Button
-                                key={source.id}
-                                type="button"
-                                variant={imageSource === source.id ? 'default' : 'outline'}
-                                onClick={() => setImageSource(source.id as any)}
-                                disabled={mediaType === 'video'}
-                                className={`h-20 flex flex-col gap-1 transition-all duration-300 ${
-                                    imageSource === source.id && mediaType !== 'video' ? 'shadow-lg shadow-primary/25' : ''
-                                }`}
-                            >
-                                <span className="text-xl">{source.icon}</span>
-                                <span className="text-xs font-semibold">{source.label}</span>
-                                <span className="text-[10px] opacity-70">{source.desc}</span>
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Upload Progress */}
-                {uploading && (
-                    <div className="space-y-2 animate-in fade-in">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Analyzing content...</span>
-                            <span className="font-mono text-primary">{uploadProgress}%</span>
+                    {/* Settings Grid */}
+                    <div className="grid grid-cols-2 gap-6">
+                        {/* Video Format */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-semibold leading-none flex items-center gap-2">
+                                <span className="text-lg">📐</span>
+                                Video Format
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    type="button"
+                                    variant={aspectRatio === '9:16' ? 'default' : 'outline'}
+                                    onClick={() => setAspectRatio('9:16')}
+                                    className={`h-16 flex flex-col gap-1 transition-all duration-300 ${
+                                        aspectRatio === '9:16' ? 'shadow-lg shadow-primary/25' : ''
+                                    }`}
+                                >
+                                    <span className="text-xl">📱</span>
+                                    <span className="text-xs font-semibold">Mobile</span>
+                                    <span className="text-[9px] opacity-70">9:16</span>
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant={aspectRatio === '16:9' ? 'default' : 'outline'}
+                                    onClick={() => setAspectRatio('16:9')}
+                                    className={`h-16 flex flex-col gap-1 transition-all duration-300 ${
+                                        aspectRatio === '16:9' ? 'shadow-lg shadow-primary/25' : ''
+                                    }`}
+                                >
+                                    <span className="text-xl">💻</span>
+                                    <span className="text-xs font-semibold">Desktop</span>
+                                    <span className="text-[9px] opacity-70">16:9</span>
+                                </Button>
+                            </div>
                         </div>
-                        <Progress value={uploadProgress} className="h-2" />
+
+                        {/* Caption Style */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-semibold leading-none flex items-center gap-2">
+                                <span className="text-lg">✍️</span>
+                                Caption Style
+                            </label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {[
+                                    { id: 'none', label: 'None', icon: '✕' },
+                                    { id: 'classic', label: 'Classic', icon: '📝' },
+                                    { id: 'modern', label: 'Modern', icon: '✨' },
+                                    { id: 'neon', label: 'Neon', icon: '💫' }
+                                ].map((style) => (
+                                    <Button
+                                        key={style.id}
+                                        type="button"
+                                        variant={captionStyle === style.id ? 'default' : 'outline'}
+                                        onClick={() => setCaptionStyle(style.id as any)}
+                                        className="h-16 flex flex-col gap-1 p-1 text-xs"
+                                    >
+                                        <span className="text-base">{style.icon}</span>
+                                        <span className="text-[10px] capitalize">{style.label}</span>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Media Type */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-semibold leading-none flex items-center gap-2">
+                                <span className="text-lg">🎬</span>
+                                Media Type
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { id: 'image', label: 'Images', icon: '🖼️', desc: 'Static' },
+                                    { id: 'video', label: 'Videos', icon: '🎥', desc: 'Stock' },
+                                    { id: 'both', label: 'Mixed', icon: '🎞️', desc: 'Both' }
+                                ].map((type) => (
+                                    <Button
+                                        key={type.id}
+                                        type="button"
+                                        variant={mediaType === type.id ? 'default' : 'outline'}
+                                        onClick={() => setMediaType(type.id as any)}
+                                        className={`h-16 flex flex-col gap-1 transition-all duration-300 ${
+                                            mediaType === type.id ? 'shadow-lg shadow-primary/25' : ''
+                                        }`}
+                                    >
+                                        <span className="text-lg">{type.icon}</span>
+                                        <span className="text-[10px] font-semibold">{type.label}</span>
+                                        <span className="text-[9px] opacity-70">{type.desc}</span>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Visual Source */}
+                        <div className={`space-y-3 transition-all duration-300 ${mediaType === 'video' ? 'opacity-40 pointer-events-none' : ''}`}>
+                            <label className="text-sm font-semibold leading-none flex items-center gap-2">
+                                <span className="text-lg">🎨</span>
+                                Visual Source
+                                {mediaType === 'video' && (
+                                    <span className="ml-auto text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Stock only</span>
+                                )}
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { id: 'ai', label: 'AI', icon: '🤖', desc: 'AI Gen' },
+                                    { id: 'stock', label: 'Stock', icon: '📷', desc: 'Photos' },
+                                    { id: 'mixed', label: 'Mix', icon: '🔀', desc: 'Both' }
+                                ].map((source) => (
+                                    <Button
+                                        key={source.id}
+                                        type="button"
+                                        variant={imageSource === source.id ? 'default' : 'outline'}
+                                        onClick={() => setImageSource(source.id as any)}
+                                        disabled={mediaType === 'video'}
+                                        className={`h-16 flex flex-col gap-1 transition-all duration-300 ${
+                                            imageSource === source.id && mediaType !== 'video' ? 'shadow-lg shadow-primary/25' : ''
+                                        }`}
+                                    >
+                                        <span className="text-lg">{source.icon}</span>
+                                        <span className="text-[10px] font-semibold">{source.label}</span>
+                                        <span className="text-[9px] opacity-70">{source.desc}</span>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                )}
 
-                {/* Submit Button */}
-                <Button
-                    onClick={handleUpload}
-                    disabled={!file || uploading}
-                    className={`
-                        w-full h-12 text-lg font-semibold transition-all duration-300
-                        ${file && !uploading 
-                            ? 'bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 shadow-lg shadow-violet-500/30' 
-                            : ''
-                        }
-                    `}
-                >
-                    {uploading ? (
-                        <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Analyzing...
-                        </>
-                    ) : (
-                        <>
-                            <Upload className="w-5 h-5 mr-2" />
-                            Analyze & Generate Visuals
-                        </>
-                    )}
-                </Button>
-
-                {/* Info Text */}
-                <p className="text-xs text-center text-muted-foreground">
-                    You'll review and approve all visuals before the final video is generated
-                </p>
+                    {/* Info Text */}
+                    <div className="pt-4 border-t border-border/50">
+                        <p className="text-xs text-center text-muted-foreground">
+                            💡 You'll review and approve all visuals before the final video is generated
+                        </p>
+                    </div>
+                </div>
             </div>
         </Card>
     );
