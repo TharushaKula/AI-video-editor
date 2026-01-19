@@ -3,6 +3,7 @@ import upload from '../config/multer';
 import { Request, Response } from 'express';
 import { transcribeAudio } from '../services/audioService';
 import { analyzeTranscription } from '../services/intelligenceService';
+import { createIntelligentSegments } from '../services/segmentationService';
 import { generateMedia } from '../services/mediaService';
 import { generateSRT } from '../utils/subtitleUtils';
 import ffmpeg from 'fluent-ffmpeg';
@@ -76,8 +77,8 @@ router.post('/analyze', upload.single('audio'), async (req: Request, res: Respon
             console.warn('Could not delete original uploaded file:', e);
         }
 
-        // Step 1: Transcription
-        console.log(`[Job ${jobId}] Starting transcription...`);
+        // Step 1: Transcription with word-level timestamps
+        console.log(`[Job ${jobId}] Starting transcription with word-level timestamps...`);
         const transcription = await transcribeAudio(newFilePath);
         const text = transcription.text || transcription;
 
@@ -93,22 +94,23 @@ router.post('/analyze', upload.single('audio'), async (req: Request, res: Respon
             }
         }
 
-        // Step 2: Analysis
-        console.log(`[Job ${jobId}] Analyzing content...`);
-        const analysis = await analyzeTranscription(text);
+        // Step 2: Intelligent Segmentation with precise timestamps
+        console.log(`[Job ${jobId}] Creating intelligent segments with precise timestamps...`);
+        const intelligentSegments = await createIntelligentSegments(transcription, text);
 
-        // Step 3: Get audio duration and calculate segment durations
+        // Step 3: Get total audio duration
         const totalDuration = await getDuration(newFilePath);
-        const segmentCount = analysis.length;
-        const defaultDuration = totalDuration / segmentCount;
+        console.log(`[Job ${jobId}] Total audio duration: ${totalDuration.toFixed(2)}s, ${intelligentSegments.length} segments created`);
 
-        // Step 4: Generate initial visual suggestions for each segment
-        console.log(`[Job ${jobId}] Generating visual suggestions...`);
+        // Step 4: Generate initial visual suggestions for each segment with precise durations
+        console.log(`[Job ${jobId}] Generating visual suggestions with duration-aware matching...`);
         const segmentsWithVisuals = [];
 
-        for (const segment of analysis) {
+        for (const segment of intelligentSegments) {
             const source = imageSource;
             const type = mediaType;
+
+            console.log(`[Job ${jobId}] Segment ${segment.segment_id}: "${segment.text_content.substring(0, 50)}..." (${segment.duration.toFixed(2)}s)`);
 
             // Generate the initial visual
             const mediaResult = await generateMedia(
@@ -119,7 +121,8 @@ router.post('/analyze', upload.single('audio'), async (req: Request, res: Respon
                 aspectRatio,
                 source,
                 segment.contains_people,
-                type
+                type,
+                0 // variationIndex
             );
 
             segmentsWithVisuals.push({
@@ -129,7 +132,10 @@ router.post('/analyze', upload.single('audio'), async (req: Request, res: Respon
                 image_prompt: segment.image_prompt,
                 sentiment: segment.sentiment,
                 contains_people: segment.contains_people,
-                duration: defaultDuration,
+                // Precise timing information
+                start_time: segment.start_time,
+                end_time: segment.end_time,
+                duration: segment.duration, // Precise duration from timestamps
                 // Visual data
                 media_path: mediaResult.path,
                 media_type: mediaResult.type, // 'image' or 'video'

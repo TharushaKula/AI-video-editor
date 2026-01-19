@@ -23,6 +23,8 @@ export interface Segment {
     sentiment: string;
     contains_people: boolean;
     duration: number;
+    start_time?: number; // Precise start time in seconds
+    end_time?: number; // Precise end time in seconds
     media_path: string;
     media_type: 'image' | 'video';
     media_url: string;
