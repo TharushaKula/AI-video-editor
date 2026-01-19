@@ -50,11 +50,42 @@ router.get('/media/:jobId/:filename', (req, res) => {
     };
 
     const contentType = contentTypes[ext] || 'application/octet-stream';
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
+    
+    // Get file stats
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    
+    // Support range requests for video streaming (seeking, buffering)
+    const range = req.headers.range;
+    
+    if (range && (ext === '.mp4' || ext === '.webm' || ext === '.mov')) {
+        // Parse range header
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(filePath, { start, end });
+        
+        const head = {
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=3600'
+        };
+        
+        res.writeHead(206, head);
+        file.pipe(res);
+    } else {
+        // Regular file serving (for images and non-range requests)
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Content-Length', fileSize);
+        
+        const stream = fs.createReadStream(filePath);
+        stream.pipe(res);
+    }
 });
 
 export default router;

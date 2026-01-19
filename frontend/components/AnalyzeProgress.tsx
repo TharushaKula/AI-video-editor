@@ -127,7 +127,7 @@ export default function AnalyzeProgress({
                     {/* Fun fact while waiting */}
                     <div className="text-center p-3 bg-muted/30 rounded-xl border border-border/50">
                         <p className="text-xs text-muted-foreground">
-                            💡 You'll be able to review and customize every visual before generating your video
+                            💡 You&lsquo;ll be able to review and customize every visual before generating your video
                         </p>
                     </div>
                 </div>
