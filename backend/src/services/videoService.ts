@@ -1,21 +1,31 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 interface VideoSegment {
     imagePath: string; // Used for both Image and Video paths
     mediaType?: 'image' | 'video'; // discriminator
     duration: number;
+    start_time?: number; // Precise start time in audio (seconds)
+    end_time?: number; // Precise end time in audio (seconds)
     id: number;
 }
 
 export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: string, aspectRatio: string = '16:9', subtitlePath?: string, captionStyle?: string): Promise<string> => {
     return new Promise((resolve, reject) => {
-        const uploadDir = path.join(__dirname, '../../uploads', jobId);
+        const uploadDir = path.join(process.cwd(), 'uploads', jobId);
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
         const outputPath = path.join(uploadDir, 'final_video.mp4');
+        // FFmpeg can fail with "Invalid argument" when the path contains spaces; write to temp (no spaces) then move
+        const safeDir = path.join(os.tmpdir(), 'video-editor', jobId.replace(/[^a-zA-Z0-9_-]/g, '_'));
+        const outputPathSafe = path.join(safeDir, 'final_video.mp4');
+        const useSafePath = outputPath.includes(' ');
+        if (useSafePath && !fs.existsSync(safeDir)) {
+            fs.mkdirSync(safeDir, { recursive: true });
+        }
 
         // Determine dimensions
         const isVertical = aspectRatio === '9:16';
@@ -30,6 +40,7 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
         const scaleW = width;
         const scaleH = height;
 
+        // Process video segments
         segments.forEach((segment, index) => {
             // Distinguish between Image and Video
             if (segment.mediaType === 'video') {
@@ -63,8 +74,30 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
             inputMap.push(`[v${index}]`);
         });
 
+        // Process audio segments - extract precise audio portions matching video segments
+        const audioInputIndex = segments.length; // Audio is the last input
+        const audioSegments: string[] = [];
+        
+        segments.forEach((segment, index) => {
+            // Use precise timestamps if available, otherwise use sequential timing
+            const audioStart = segment.start_time !== undefined ? segment.start_time : 
+                segments.slice(0, index).reduce((sum, s) => sum + s.duration, 0);
+            const audioDuration = segment.duration;
+            
+            // Extract audio segment: atrim=start=START:duration=DURATION,asetpts=PTS-STARTPTS
+            // This ensures perfect alignment with video segment timing
+            const audioLabel = `a${index}`;
+            filterComplex.push(`[${audioInputIndex}:a]atrim=start=${audioStart}:duration=${audioDuration},asetpts=PTS-STARTPTS[${audioLabel}]`);
+            audioSegments.push(`[${audioLabel}]`);
+        });
+
+        // Concatenate video segments
         const concatFilter = `${inputMap.join('')}concat=n=${segments.length}:v=1:a=0[vconcat]`;
         filterComplex.push(concatFilter);
+        
+        // Concatenate audio segments
+        const audioConcatFilter = `${audioSegments.join('')}concat=n=${segments.length}:v=0:a=1[aconcat]`;
+        filterComplex.push(audioConcatFilter);
 
         // Build FFmpeg command
         let chain = ffmpeg();
@@ -82,22 +115,6 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
         // Add audio track (last input)
         chain = chain.input(audioPath);
 
-        // Apply Filter Complex
-        const complexStr = filterComplex.join(';');
-        chain = chain.complexFilter(complexStr, ['vconcat']);
-
-        const totalDuration = segments.reduce((acc, s) => acc + s.duration, 0) + 1;
-
-        // Output Options
-        let outputOptions = [
-            '-map', '[vconcat]', // Map video from filter
-            '-map', `${segments.length}:a`, // Map audio from file (it is the Nth input, 0-indexed)
-            '-pix_fmt', 'yuv420p',
-            // '-shortest' // CAUTION: With complex filters and exact trims, shortest can sometimes cut prematurely if audio is slightly shorter.
-            // We'll rely on our segment math.
-            '-t', `${totalDuration}` // Hard limit slightly above duration
-        ];
-
         // Caption Styles (FFmpeg force_style uses BGR hex format: &HAABBGGRR)
         const fontSize = isVertical ? 18 : 24;
         const styles: Record<string, string> = {
@@ -107,42 +124,35 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
         };
         const selectedStyle = styles[captionStyle || 'classic'] || styles['classic'];
 
+        // Build complete filter complex (with or without subtitles)
+        let finalFilterComplex = [...filterComplex];
+        let videoOutputLabel = 'vconcat';
+        let outputLabels = ['vconcat', 'aconcat'];
+
         if (subtitlePath && fs.existsSync(subtitlePath)) {
-            // Use complex filter for subtitles
-            // path must be escaped for ffmpeg
-            const escapedPath = subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:'); // Simple escape
-            // Since we already have a complex filter chain ending in [vconcat], we need to chain subtitles onto it.
-            // But complexFilter() only takes one string.
-            // We need to append the subtitles filter to the existing graph.
-
-            // New strategy: Append ",subtitles=..." to the concat filter string
-            // But subtitles filter usually takes a filename.
-            // [vconcat]subtitles='path'[vfinal]
-
-            outputOptions = [
-                '-map', '[vfinal]',
-                '-map', `${segments.length}:a`,
-                '-pix_fmt', 'yuv420p',
-                '-t', `${totalDuration}`
-            ];
-
-            // Extend the complex filter
-            // Replace the last [vconcat] with intermediate label or chain it
-            // Current list: ..., concat=...[vconcat]
-            // We add: ;[vconcat]subtitles=...[vfinal]
-
-            // Re-construct complex string
-            chain = chain.complexFilter([
-                ...filterComplex,
-                `[vconcat]subtitles='${escapedPath}':force_style='${selectedStyle}'[vfinal]`
-            ]);
-
-        } else {
-            // No subtitles
-            // Map [vconcat] directly
+            // Add subtitles filter
+            const escapedPath = subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
+            finalFilterComplex.push(`[vconcat]subtitles='${escapedPath}':force_style='${selectedStyle}'[vfinal]`);
+            videoOutputLabel = 'vfinal';
+            outputLabels = ['vfinal', 'aconcat'];
         }
 
+        // Apply Filter Complex - specify both video and audio outputs (only once)
+        const complexStr = finalFilterComplex.join(';');
+        chain = chain.complexFilter(complexStr, outputLabels);
+
+        const totalDuration = segments.reduce((acc, s) => acc + s.duration, 0) + 1;
+
+        // Output options (do not add -map here; complexFilter(..., outputLabels) already adds -map [vfinal] and -map [aconcat])
+        const outputOptions = [
+            '-pix_fmt', 'yuv420p',
+            '-t', `${totalDuration}` // Hard limit slightly above duration
+        ];
+
         chain = chain.outputOptions(outputOptions);
+        
+        // Add audio codec
+        chain = chain.outputOptions(['-c:a', 'aac', '-b:a', '128k']);
 
         // Add x264 encoding params. Removed -shortest to prevent premature cuts; we rely on -t.
         chain = chain.outputOptions(['-c:v', 'libx264', '-preset', 'fast', '-crf', '23']);
@@ -157,10 +167,24 @@ export const createVideo = (audioPath: string, segments: VideoSegment[], jobId: 
         });
 
         chain.on('end', () => {
+            if (useSafePath) {
+                try {
+                    fs.renameSync(outputPathSafe, outputPath);
+                } catch (e) {
+                    try {
+                        fs.copyFileSync(outputPathSafe, outputPath);
+                        fs.unlinkSync(outputPathSafe);
+                    } catch (e2) {
+                        reject(e2);
+                        return;
+                    }
+                }
+            }
             console.log('Video created successfully');
             resolve(outputPath);
         });
 
-        chain.save(outputPath);
+        const savePath = useSafePath ? outputPathSafe : outputPath;
+        chain.save(savePath);
     });
 };

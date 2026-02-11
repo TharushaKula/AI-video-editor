@@ -6,18 +6,26 @@ import { Progress } from '@/components/ui/progress';
 import { Card } from '@/components/ui/card';
 import { CheckCircle2, Circle, Loader2, Film, Sparkles } from 'lucide-react';
 
+interface SEOMetadata {
+    title: string;
+    description: string;
+    hashtags: string[];
+}
+
 interface ProcessStatusProps {
     jobId: string;
-    onComplete: (videoUrl: string) => void;
+    onComplete: (videoUrl: string, seoMetadata?: SEOMetadata) => void;
 }
 
 const steps = [
     'assembly',
+    'seo',
     'complete'
 ];
 
 const stepLabels: Record<string, string> = {
     'assembly': 'Assembling Video',
+    'seo': 'Generating SEO Metadata',
     'complete': 'Complete'
 };
 
@@ -43,7 +51,7 @@ export default function ProcessStatus({ jobId, onComplete }: ProcessStatusProps)
             if (data.step === 'complete') {
                 // Wait a moment for pure UI satisfaction
                 setTimeout(() => {
-                    onComplete(data.videoUrl);
+                    onComplete(data.videoUrl, data.seoMetadata);
                     socket.disconnect();
                 }, 1000);
             }
@@ -89,7 +97,7 @@ export default function ProcessStatus({ jobId, onComplete }: ProcessStatusProps)
                 <div className="relative">
                     <Progress value={progress} className="h-4" />
                     {/* Shimmer effect */}
-                    <div 
+                    <div
                         className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-full animate-shimmer"
                     />
                 </div>
@@ -107,8 +115,8 @@ export default function ProcessStatus({ jobId, onComplete }: ProcessStatusProps)
                     if (step === 'complete' && currentStep === 'complete') status = 'completed';
 
                     return (
-                        <div 
-                            key={step} 
+                        <div
+                            key={step}
                             className={`
                                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300
                                 ${status === 'current' ? 'bg-emerald-500/10 border border-emerald-500/20' : ''}

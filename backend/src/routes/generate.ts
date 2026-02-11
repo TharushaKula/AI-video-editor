@@ -2,6 +2,7 @@ import express from 'express';
 import { Request, Response } from 'express';
 import { getJobData, setJobData } from './analyze';
 import { createVideo } from '../services/videoService';
+import { generateSEOMetadata } from '../services/intelligenceService';
 import { getIO } from '../services/socketService';
 
 const router = express.Router();
@@ -47,13 +48,20 @@ router.post('/generate/:jobId', async (req: Request, res: Response): Promise<voi
             message: 'Starting video assembly with your approved visuals...'
         });
 
-        // Build segments array for video creation
+        // Build segments array for video creation with precise timestamps
         const segmentsForVideo = jobData.segments.map((segment: any) => ({
             imagePath: segment.media_path,
             mediaType: segment.user_media_type || segment.media_type,
             duration: segment.duration,
+            start_time: segment.start_time, // Precise start time from intelligent segmentation
+            end_time: segment.end_time, // Precise end time from intelligent segmentation
             id: segment.segment_id
         }));
+        
+        console.log(`[Generate ${jobId}] Building video with ${segmentsForVideo.length} segments`);
+        segmentsForVideo.forEach((seg: any, idx: number) => {
+            console.log(`  Segment ${idx + 1}: ${seg.start_time?.toFixed(2)}s - ${seg.end_time?.toFixed(2)}s (${seg.duration.toFixed(2)}s)`);
+        });
 
         io.to(jobId).emit('progress', {
             step: 'assembly',
@@ -76,12 +84,24 @@ router.post('/generate/:jobId', async (req: Request, res: Response): Promise<voi
         jobData.status = 'complete';
         setJobData(jobId, jobData);
 
-        // Emit completion
+        // Generate SEO metadata (title, description, hashtags)
+        io.to(jobId).emit('progress', {
+            step: 'seo',
+            progress: 95,
+            message: 'Generating SEO metadata...'
+        });
+        const transcriptionText = jobData.transcription || '';
+        const seoMetadata = transcriptionText
+            ? await generateSEOMetadata(transcriptionText)
+            : { title: 'Generated Video', description: 'A video created from your audio.', hashtags: ['#video', '#generated'] };
+
+        // Emit completion with title, description, and hashtags
         io.to(jobId).emit('progress', {
             step: 'complete',
             progress: 100,
             message: 'Video ready!',
-            videoUrl: `/api/download/${jobId}/final_video.mp4`
+            videoUrl: `/api/download/${jobId}/final_video.mp4`,
+            seoMetadata
         });
 
     } catch (error) {

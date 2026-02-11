@@ -20,6 +20,7 @@ export default function Home() {
     const [step, setStep] = useState<AppStep>('upload');
     const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
     const [videoUrl, setVideoUrl] = useState<string>('');
+    const [seoMetadata, setSeoMetadata] = useState<any>(null);
 
     const handleAnalyzeStart = () => {
         setStep('analyzing');
@@ -34,15 +35,19 @@ export default function Home() {
         setStep('generating');
     };
 
-    const handleGenerationComplete = (url: string) => {
+    const handleGenerationComplete = (url: string, seo: any) => {
         setVideoUrl(url);
+        setSeoMetadata(seo);
         setStep('result');
     };
 
     const handleReset = () => {
         setStep('upload');
         setAnalysisResult(null);
+        setStep('upload');
+        setAnalysisResult(null);
         setVideoUrl('');
+        setSeoMetadata(null);
     };
 
     return (
@@ -70,7 +75,7 @@ export default function Home() {
                         </span>
                     </h1>
                     <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                        Turn your audio into captivating videos with AI-generated visuals. 
+                        Turn your audio into captivating videos with AI-generated visuals.
                         Review and customize every frame before generating.
                     </p>
 
@@ -106,9 +111,8 @@ export default function Home() {
                                             <span>{stepLabels[s]}</span>
                                         </div>
                                         {i < 4 && (
-                                            <div className={`w-8 h-0.5 mx-1 transition-colors duration-300 ${
-                                                stepIndex < currentIndex ? 'bg-emerald-500' : 'bg-muted'
-                                            }`} />
+                                            <div className={`w-8 h-0.5 mx-1 transition-colors duration-300 ${stepIndex < currentIndex ? 'bg-emerald-500' : 'bg-muted'
+                                                }`} />
                                         )}
                                     </div>
                                 );
@@ -121,9 +125,9 @@ export default function Home() {
                 <div className="w-full max-w-7xl mx-auto relative min-h-[400px]">
                     {step === 'upload' && (
                         <div className="animate-in fade-in zoom-in duration-300">
-                            <AudioUploader 
+                            <AudioUploader
                                 onAnalyzeStart={handleAnalyzeStart}
-                                onAnalysisComplete={handleAnalysisComplete} 
+                                onAnalysisComplete={handleAnalysisComplete}
                             />
                         </div>
                     )}
@@ -148,16 +152,20 @@ export default function Home() {
 
                     {step === 'generating' && analysisResult && (
                         <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-                            <ProcessStatus 
-                                jobId={analysisResult.jobId} 
-                                onComplete={handleGenerationComplete} 
+                            <ProcessStatus
+                                jobId={analysisResult.jobId}
+                                onComplete={handleGenerationComplete}
                             />
                         </div>
                     )}
 
                     {step === 'result' && (
                         <div className="animate-in fade-in zoom-in duration-500">
-                            <VideoPlayer videoUrl={videoUrl} onReset={handleReset} />
+                            <VideoPlayer
+                                videoUrl={videoUrl}
+                                onReset={handleReset}
+                                seoMetadata={seoMetadata}
+                            />
                         </div>
                     )}
                 </div>

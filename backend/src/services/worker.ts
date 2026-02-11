@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { transcribeAudio } from './audioService';
-import { analyzeTranscription } from './intelligenceService';
+import { analyzeTranscription, generateSEOMetadata } from './intelligenceService';
 import { generateMedia } from './mediaService';
 import { createVideo } from './videoService';
 import { getIO } from './socketService';
@@ -119,12 +119,17 @@ export const initWorker = async () => {
             // Pass segmentsWithMedia
             const videoPath = await createVideo(filePath, segmentsWithMedia, jobId!, aspectRatio, subtitlePath, captionStyle);
 
-            // 5. Done
+            // 5. Generate SEO Metadata
+            io.to(jobId!).emit('progress', { step: 'seo', progress: 95, message: 'Generating SEO metadata...' });
+            const seoMetadata = await generateSEOMetadata(text);
+
+            // 6. Done
             io.to(jobId!).emit('progress', {
                 step: 'complete',
                 progress: 100,
                 message: 'Video ready!',
-                videoUrl: `/api/download/${jobId}/final_video.mp4`
+                videoUrl: `/api/download/${jobId}/final_video.mp4`,
+                seoMetadata
             });
 
             return { videoPath };
